@@ -39,6 +39,9 @@ npm run dev                     # http://localhost:3000
 
 Production build: `npm run build && npm start`.
 
+Unit tests (no install or database needed, Node 22+): `npm test`. They cover input validation, rate limiting and
+formatting, and run on every push via GitHub Actions.
+
 `scripts/init-db.js` is idempotent: it applies `db/schema.sql` (all `CREATE ... IF NOT EXISTS`), runs
 `db/seed.sql` once (tracked in `app_meta`, skipped if `SEED_DEMO_EVENTS=false`), and creates the admin from
 `ADMIN_EMAIL` / `ADMIN_PASSWORD` (or promotes that user if the email already exists; it never changes an
