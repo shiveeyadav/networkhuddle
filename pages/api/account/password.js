@@ -1,5 +1,5 @@
 import { createHandler } from '../../../lib/api';
-import { query } from '../../../lib/db';
+import { withTransaction } from '../../../lib/db';
 import { verifyPassword, hashPassword, createSession } from '../../../lib/auth';
 import { HttpError } from '../../../lib/errors';
 import * as v from '../../../lib/validate';
@@ -14,8 +14,11 @@ export default createHandler(
       throw new HttpError(401, 'Your current password isn’t right.');
     }
     const hash = await hashPassword(next);
-    await query('UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2', [hash, user.id]);
-    await query('DELETE FROM sessions WHERE user_id = $1', [user.id]);
+    // One transaction: never leave the new password set with the old sessions still alive.
+    await withTransaction(async (client) => {
+      await client.query('UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2', [hash, user.id]);
+      await client.query('DELETE FROM sessions WHERE user_id = $1', [user.id]);
+    });
     await createSession(res, user.id);
     return res.status(200).json({ ok: true });
   }

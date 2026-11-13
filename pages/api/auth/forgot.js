@@ -3,6 +3,7 @@ import { query } from '../../../lib/db';
 import { randomToken, hashToken, siteUrl } from '../../../lib/auth';
 import { sendMail } from '../../../lib/mailer';
 import * as v from '../../../lib/validate';
+import { rateLimit } from '../../../lib/ratelimit';
 
 const RESET_TTL_MINUTES = 60;
 
@@ -11,7 +12,11 @@ export default createHandler({ limit: { key: 'forgot', max: 5, windowMs: 15 * 60
   const { rows } = await query('SELECT id, name FROM users WHERE email = $1 AND is_suspended = FALSE', [email]);
   const user = rows[0];
 
-  if (user) {
+  // Per-address cap so nobody can flood one inbox with reset emails by rotating IPs.
+  // The response stays the same either way, so this doesn't reveal whether the account exists.
+  const underCap = rateLimit(`forgot-email:${email}`, 3, 60 * 60 * 1000);
+
+  if (user && underCap) {
     // Invalidate older unused links for this user.
     await query('DELETE FROM password_resets WHERE user_id = $1 AND used_at IS NULL', [user.id]);
     const token = randomToken();
